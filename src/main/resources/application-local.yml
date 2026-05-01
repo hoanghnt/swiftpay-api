@@ -1,0 +1,58 @@
+spring:
+  # ==================== DATASOURCE ====================
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:swiftpay-db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      pool-name: SwiftPayHikariPool-Local
+
+  # ==================== MONGODB ====================
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_HOST:localhost}:${MONGO_PORT:27017}/${MONGO_DB:swiftpay_audit}
+
+    # ==================== REDIS ====================
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  # ==================== JPA (local verbose) ====================
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true 
+
+  # ==================== THYMELEAF ====================
+  thymeleaf:
+    cache: false
+
+  # ==================== DEVTOOLS ====================
+  devtools:
+    restart:
+      enabled: true
+
+# ==================== APP SECRETS (local override) ====================
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:}
+  email:
+    verification-url: ${APP_VERIFICATION_URL:http://localhost:8080/api/auth/verify}
+    reset-password-url: ${APP_RESET_PASSWORD_URL:http://localhost:8080/api/auth/reset-password}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  vnpay:
+    tmn-code: ${VNPAY_TMN_CODE:DEMO_TMN_CODE}
+    hash-secret: ${VNPAY_HASH_SECRET:DEMO_SECRET}
+    return-url: http://localhost:8080/api/payments/vnpay/return
+    ipn-url: http://localhost:8080/api/payments/vnpay/ipn
+
+# ==================== LOGGING (verbose local) ====================
+logging:
+  level:
+    com.hoanghnt.swiftpay: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: DEBUG

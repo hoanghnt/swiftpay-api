@@ -1,0 +1,168 @@
+spring:
+  application:
+    name: swiftpay
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE}
+
+  # ==================== JPA ====================
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false 
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+        default_schema: public
+
+  # ==================== DATASOURCE ====================
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000 # 30s
+      idle-timeout: 600000 # 10m
+      max-lifetime: 1800000 # 30m
+      pool-name: SwiftPayHikariPool
+
+  # ==================== FLYWAY ====================
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+  # ==================== REDIS ====================
+  data:
+    redis:
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+
+  # ==================== EMAIL ====================
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    from: ${MAIL_FROM:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        transport:
+          protocol: smtp
+
+  # ==================== THYMELEAF ====================
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    mode: HTML
+    cache: true
+
+  # ==================== JACKSON ====================
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+# ==================== SERVER ====================
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    include-exception: false
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,application/javascript
+    min-response-size: 1024
+
+# ==================== ACTUATOR ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+# ==================== SWAGGER ====================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    try-it-out-enabled: true
+  show-actuator: false
+
+# ==================== LOGGING ====================
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+  level:
+    root: INFO
+    org.springframework: INFO
+    com.hoanghnt.swiftpay: INFO
+
+# ==================== APP BUSINESS RULES ====================
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      algorithm: HS512
+      access-token-expiration: 15m
+      refresh-token-expiration: 7d
+    login:
+      max-failed-attempts: 5
+      lockout-duration: 15m
+
+  vnpay:
+    tmn-code: ${VNPAY_TMN_CODE:}
+    hash-secret: ${VNPAY_HASH_SECRET:}
+    pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    return-url: ${VNPAY_RETURN_URL:}
+    ipn-url: ${VNPAY_IPN_URL:}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+  otp:
+    expiration: 5m
+    length: 6
+
+  wallet:
+    max-daily-transfer: 50000000 # 50m VND
+    min-transfer-amount: 1000 # 1.000 VND
+    withdraw-fee-percent: 0.01 # 1%
+
+  idempotency:
+    ttl: 24h
+
+  email:
+    verification-url: ${APP_VERIFICATION_URL:}
+    reset-password-url: ${APP_RESET_PASSWORD_URL:}

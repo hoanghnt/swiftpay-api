@@ -1,0 +1,59 @@
+services:
+  - type: keyvalue
+    name: swiftpay-kv
+    plan: free
+    region: singapore
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow internal access from other Render services (required field)
+
+  - type: web
+    name: swiftpay-api
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/actuator/health
+    buildFilter:
+      paths:
+        - "src/**"
+        - "pom.xml"
+        - "mvnw"
+        - "mvnw.cmd"
+        - ".mvn/**"
+        - "Dockerfile"
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: DATABASE_URL
+        sync: false
+      - key: SPRING_DATA_REDIS_URL
+        fromService:
+          name: swiftpay-kv
+          type: keyvalue
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: VNPAY_TMN_CODE
+        sync: false
+      - key: VNPAY_HASH_SECRET
+        sync: false
+      - key: VNPAY_RETURN_URL
+        sync: false
+      - key: VNPAY_IPN_URL
+        sync: false
+      - key: APP_VERIFICATION_URL
+        sync: false
+      - key: APP_RESET_PASSWORD_URL
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false

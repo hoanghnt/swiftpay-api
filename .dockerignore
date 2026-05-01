@@ -1,0 +1,12 @@
+target/
+.git
+.gitignore
+.cursor*
+.idea
+.vscode
+*.iml
+.env
+!/.env.example
+README.md
+render.yaml
+**/*.log
