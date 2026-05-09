@@ -1,15 +1,20 @@
 package com.hoanghnt.swiftpay.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hoanghnt.swiftpay.dto.request.TransferRequest;
+import com.hoanghnt.swiftpay.dto.request.WithdrawRequest;
 import com.hoanghnt.swiftpay.dto.response.TransactionResponse;
 import com.hoanghnt.swiftpay.dto.response.WalletResponse;
+import com.hoanghnt.swiftpay.dto.response.WithdrawResponse;
 import com.hoanghnt.swiftpay.entity.Transaction;
 import com.hoanghnt.swiftpay.entity.TransactionStatus;
 import com.hoanghnt.swiftpay.entity.TransactionType;
@@ -37,6 +42,9 @@ public class WalletService {
 
         private static final String IDEMPOTENCY_PREFIX = "idempotency:";
         private static final long IDEMPOTENCY_TTL_HOURS = 24;
+
+        @Value("${app.wallet.withdraw-fee-percent:0.01}")
+        private double withdrawFeePercent;
 
         @Transactional(readOnly = true)
         public WalletResponse getMyWallet(String username) {
@@ -145,5 +153,85 @@ public class WalletService {
                                 txn.getReceiver() != null ? txn.getReceiver().getUsername() : null,
                                 txn.getDescription(),
                                 txn.getCreatedAt());
+        }
+
+        @Transactional
+        public WithdrawResponse withdraw(String username, WithdrawRequest request) {
+
+                User user = userRepository.findByUsername(username)
+                                .orElseThrow(() -> new ResourceNotFoundException("User", username));
+
+                Wallet wallet = walletRepository.findByUserIdWithLock(user.getId())
+                                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
+                if (wallet.isFrozen()) {
+                        throw new BusinessException(ErrorCode.WALLET_FROZEN);
+                }
+
+                BigDecimal fee = request.amount()
+                                .multiply(BigDecimal.valueOf(withdrawFeePercent))
+                                .setScale(4, RoundingMode.HALF_UP);
+                BigDecimal netAmount = request.amount().subtract(fee);
+
+                if (wallet.getBalance().compareTo(request.amount()) < 0) {
+                        throw new BusinessException(ErrorCode.INSUFFICIENT_BALANCE);
+                }
+
+                // Debit
+                wallet.setBalance(wallet.getBalance().subtract(request.amount()));
+                walletRepository.save(wallet);
+
+                Transaction transaction = Transaction.builder()
+                                .idempotencyKey(UUID.randomUUID())
+                                .sender(user)
+                                .receiver(null)
+                                .amount(request.amount())
+                                .fee(fee)
+                                .type(TransactionType.WITHDRAW)
+                                .status(TransactionStatus.COMPLETED)
+                                .description("Withdraw to " + request.bankName() + " - " + request.bankAccountNumber())
+                                .build();
+                transaction = transactionRepository.save(transaction);
+
+                log.info("Withdraw completed: user={} | amount={} | fee={} | txnId={}",
+                                username, request.amount(), fee, transaction.getId());
+
+                return new WithdrawResponse(
+                                transaction.getId(),
+                                request.amount(),
+                                fee,
+                                netAmount,
+                                transaction.getStatus().name(),
+                                request.bankAccountNumber(),
+                                request.bankName(),
+                                transaction.getCreatedAt());
+        }
+
+        @Transactional
+        public void freezeWallet(UUID userId) {
+                Wallet wallet = walletRepository.findByUserId(userId)
+                                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
+                if (wallet.isFrozen()) {
+                        throw new BusinessException(ErrorCode.WALLET_ALREADY_FROZEN);
+                }
+
+                wallet.setFrozen(true);
+                walletRepository.save(wallet);
+                log.info("Wallet frozen: userId={}", userId);
+        }
+
+        @Transactional
+        public void unfreezeWallet(UUID userId) {
+                Wallet wallet = walletRepository.findByUserId(userId)
+                                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_NOT_FOUND));
+
+                if (!wallet.isFrozen()) {
+                        throw new BusinessException(ErrorCode.WALLET_NOT_FROZEN);
+                }
+
+                wallet.setFrozen(false);
+                walletRepository.save(wallet);
+                log.info("Wallet unfrozen: userId={}", userId);
         }
 }
