@@ -30,7 +30,9 @@ public enum ErrorCode {
     DUPLICATE_TRANSACTION("TXN_001", "Duplicate transaction", HttpStatus.CONFLICT),
     VNPAY_INVALID_SIGNATURE("VNP_001", "Invalid VNPay signature", HttpStatus.BAD_REQUEST),
     VNPAY_ORDER_NOT_FOUND("VNP_002", "VNPay order not found", HttpStatus.NOT_FOUND),
-    VNPAY_ALREADY_PROCESSED("VNP_003", "Payment already processed", HttpStatus.CONFLICT);
+    VNPAY_ALREADY_PROCESSED("VNP_003", "Payment already processed", HttpStatus.CONFLICT),
+    WALLET_ALREADY_FROZEN("WAL_005", "Wallet is already frozen", HttpStatus.CONFLICT),
+    WALLET_NOT_FROZEN("WAL_006", "Wallet is not frozen", HttpStatus.CONFLICT);
 
     private final String code;
     private final String defaultMessage;

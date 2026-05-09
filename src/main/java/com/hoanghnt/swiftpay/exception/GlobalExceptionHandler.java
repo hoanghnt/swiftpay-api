@@ -1,6 +1,6 @@
 package com.hoanghnt.swiftpay.exception;
 
-import com.hoanghnt.swiftpay.dto.response.ApiResponse;
+import com.hoanghnt.swiftpay.dto.response.BaseResponse;
 import com.hoanghnt.swiftpay.exception.custom.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -18,53 +18,53 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
+    public ResponseEntity<BaseResponse<Void>> handleBusiness(BusinessException ex) {
         ErrorCode errorCode = ex.getErrorCode();
         log.warn("Business exception: {} - {}", errorCode.getCode(), ex.getMessage());
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(ApiResponse.error(errorCode.getCode(), ex.getMessage()));
+                .body(BaseResponse.error(errorCode.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<BaseResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .map(err -> err.getField() + ": " + err.getDefaultMessage())
                 .collect(Collectors.joining(", "));
         log.warn("Validation failed: {}", message);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ErrorCode.VALIDATION_FAILED.getCode(), message));
+                .body(BaseResponse.error(ErrorCode.VALIDATION_FAILED.getCode(), message));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
+    public ResponseEntity<BaseResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         log.warn("Bad credentials attempt");
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(
+                .body(BaseResponse.error(
                         ErrorCode.INVALID_CREDENTIALS.getCode(),
                         "Invalid username or password"
                 ));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+    public ResponseEntity<BaseResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(
+                .body(BaseResponse.error(
                         ErrorCode.ACCESS_DENIED.getCode(),
                         ErrorCode.ACCESS_DENIED.getDefaultMessage()
                 ));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
+    public ResponseEntity<BaseResponse<Void>> handleGeneric(Exception ex) {
         log.error("Unexpected error", ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(
+                .body(BaseResponse.error(
                         ErrorCode.INTERNAL_ERROR.getCode(),
                         "An unexpected error occurred"
                 ));
