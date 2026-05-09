@@ -44,12 +44,12 @@ public class TransactionService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
 
-        Specification<Transaction> spec = Specification
-                .where(TransactionSpecification.belongsToUser(user.getId()))
-                .and(TransactionSpecification.hasType(type))
-                .and(TransactionSpecification.hasStatus(status))
-                .and(TransactionSpecification.createdAfter(from))
-                .and(TransactionSpecification.createdBefore(to));
+        Specification<Transaction> spec = Specification.allOf(
+                TransactionSpecification.belongsToUser(user.getId()),
+                TransactionSpecification.hasType(type),
+                TransactionSpecification.hasStatus(status),
+                TransactionSpecification.createdAfter(from),
+                TransactionSpecification.createdBefore(to));
 
         return transactionRepository.findAll(spec, pageable)
                 .map(this::toResponse);
@@ -78,7 +78,7 @@ public class TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction",
                         transactionId.toString()));
 
-        // Authorization: chỉ sender hoặc receiver mới được xem
+        // Authorization: only sender or receiver may view this transaction
         boolean isSender = transaction.getSender() != null
                 && transaction.getSender().getId().equals(user.getId());
         boolean isReceiver = transaction.getReceiver() != null
