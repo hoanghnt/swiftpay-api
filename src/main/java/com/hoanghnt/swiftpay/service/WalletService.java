@@ -44,7 +44,7 @@ public class WalletService {
         private static final long IDEMPOTENCY_TTL_HOURS = 24;
 
         @Value("${app.wallet.withdraw-fee-percent:0.01}")
-        private double withdrawFeePercent;
+        private BigDecimal withdrawFeePercent;
 
         @Transactional(readOnly = true)
         public WalletResponse getMyWallet(String username) {
@@ -169,7 +169,7 @@ public class WalletService {
                 }
 
                 BigDecimal fee = request.amount()
-                                .multiply(BigDecimal.valueOf(withdrawFeePercent))
+                                .multiply(withdrawFeePercent)
                                 .setScale(4, RoundingMode.HALF_UP);
                 BigDecimal netAmount = request.amount().subtract(fee);
 
