@@ -318,6 +318,7 @@ public class WalletService {
                 wallet.setFrozen(true);
                 walletRepository.save(wallet);
                 log.info("Wallet frozen: userId={}", userId);
+                auditService.logSuccess(AuditEventType.WALLET_FROZEN, wallet.getUser().getUsername(), userId);
         }
 
         @Transactional
@@ -332,5 +333,6 @@ public class WalletService {
                 wallet.setFrozen(false);
                 walletRepository.save(wallet);
                 log.info("Wallet unfrozen: userId={}", userId);
+                auditService.logSuccess(AuditEventType.WALLET_UNFROZEN, wallet.getUser().getUsername(), userId);
         }
 }

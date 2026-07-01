@@ -1,5 +1,7 @@
 package com.hoanghnt.swiftpay.service;
 
+import com.hoanghnt.swiftpay.audit.AuditEventType;
+import com.hoanghnt.swiftpay.audit.AuditService;
 import com.hoanghnt.swiftpay.config.JwtProperties;
 import com.hoanghnt.swiftpay.dto.request.LoginRequest;
 import com.hoanghnt.swiftpay.dto.request.RegisterRequest;
@@ -46,6 +48,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final RedisTemplate<String, String> redisTemplate;
     private final JwtProperties jwtProperties;
+    private final AuditService auditService;
 
     private static final int VERIFICATION_TOKEN_EXPIRATION_HOURS = 24;
     private static final int MAX_FAILED_ATTEMPTS = 5;
@@ -96,6 +99,8 @@ public class AuthService {
         emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), token);
         log.info("User registered: username={}, email={}", user.getUsername(), user.getEmail());
 
+        auditService.logSuccess(AuditEventType.REGISTER, user.getUsername(), user.getId());
+
         // 6. Return response
         return new RegisterResponse(
                 user.getId(),
@@ -104,7 +109,7 @@ public class AuthService {
                 "Registration successful. Please check your email to verify your account.");
     }
 
-    @Transactional
+    @Transactional()
     public void verifyEmail(String token) {
         EmailVerification verification = emailVerificationRepository.findByToken(token)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VERIFICATION_TOKEN));
@@ -150,7 +155,7 @@ public class AuthService {
 
         // 4. Reset failed attempts + update lastLoginAt
         user.setFailedLoginAttempts(0);
-        user.setLockedUntil(null);
+        user.setLockedUntil(null); 
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
@@ -166,6 +171,8 @@ public class AuthService {
                 Duration.ofSeconds(refreshTtlSeconds));
 
         log.info("User logged in: username={}", user.getUsername());
+
+        auditService.logSuccess(AuditEventType.LOGIN_SUCCESS, user.getUsername(), user.getId());
 
         return new LoginResponse(
                 accessToken,
@@ -186,6 +193,7 @@ public class AuthService {
             log.warn("Account locked after {} failed attempts: {}", attempts, user.getUsername());
         }
         userRepository.save(user);
+        auditService.logFailure(AuditEventType.LOGIN_FAILURE, user.getUsername(), user.getId(), "Bad credentials");
     }
 
     @Transactional(readOnly = true)
@@ -230,6 +238,7 @@ public class AuthService {
         userRepository.findByUsername(username).ifPresent(user -> {
             redisTemplate.delete(REFRESH_TOKEN_PREFIX + user.getId());
             log.info("User logged out: username={}", username);
+            auditService.logSuccess(AuditEventType.LOGOUT, user.getUsername(), user.getId());
         });
     }
 
