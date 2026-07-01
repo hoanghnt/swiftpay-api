@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Chuyển tiền thành công</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+<div style="background: #f8f9fa; padding: 30px; border-radius: 8px;">
+    <h1 style="color: #2563eb;">Chuyển tiền thành công</h1>
+    <p>Chào <strong th:text="${senderUsername}">Sender</strong>,</p>
+    <p>Bạn vừa chuyển thành công <strong th:text="${amount} + ' VND'">0 VND</strong>
+       tới <strong th:text="${receiverUsername}">Receiver</strong>.</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280;">Mã giao dịch</td>
+            <td style="padding: 8px 0; text-align: right;" th:text="${transactionId}"></td>
+        </tr>
+    </table>
+    <p style="color: #6b7280; font-size: 14px;">Nếu bạn không thực hiện giao dịch này, vui lòng liên hệ hỗ trợ ngay.</p>
+</div>
+</body>
+</html>

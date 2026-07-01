@@ -3,16 +3,22 @@ package com.hoanghnt.swiftpay.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hoanghnt.swiftpay.audit.AuditEventType;
+import com.hoanghnt.swiftpay.audit.AuditService;
+import com.hoanghnt.swiftpay.config.WalletProperties;
 import com.hoanghnt.swiftpay.dto.request.TransferRequest;
 import com.hoanghnt.swiftpay.dto.request.WithdrawRequest;
 import com.hoanghnt.swiftpay.dto.response.TransactionResponse;
+import com.hoanghnt.swiftpay.dto.response.WalletLimitsResponse;
 import com.hoanghnt.swiftpay.dto.response.WalletResponse;
 import com.hoanghnt.swiftpay.dto.response.WithdrawResponse;
 import com.hoanghnt.swiftpay.entity.Transaction;
@@ -39,12 +45,13 @@ public class WalletService {
         private final UserRepository userRepository;
         private final TransactionRepository transactionRepository;
         private final RedisTemplate<String, String> redisTemplate;
+        private final EmailService emailService;
+        private final WalletProperties walletProperties;
+        private final AuditService auditService;
 
         private static final String IDEMPOTENCY_PREFIX = "idempotency:";
         private static final long IDEMPOTENCY_TTL_HOURS = 24;
-
-        @Value("${app.wallet.withdraw-fee-percent:0.01}")
-        private BigDecimal withdrawFeePercent;
+        private static final String DAILY_TRANSFER_PREFIX = "daily-transfer:";
 
         @Transactional(readOnly = true)
         public WalletResponse getMyWallet(String username) {
@@ -62,7 +69,7 @@ public class WalletService {
                                 wallet.getCreatedAt());
         }
 
-        @Transactional
+        @Transactional()
         public TransactionResponse transfer(String senderUsername, String idempotencyKey, TransferRequest request) {
 
                 // 1. Idempotency check
@@ -136,8 +143,26 @@ public class WalletService {
                                 transaction.getId().toString(),
                                 Duration.ofHours(IDEMPOTENCY_TTL_HOURS));
 
+                // 11. Increment daily transfer counter
+                BigDecimal newDailyUsed = dailyUsed.add(request.amount());
+                redisTemplate.opsForValue().set(
+                                dailyKey,
+                                newDailyUsed.toPlainString(),
+                                Duration.ofSeconds(secondsUntilMidnightUtc()));
+
                 log.info("Transfer completed: {} → {} | amount={} | txnId={}",
                                 senderUsername, request.receiverUsername(), request.amount(), transaction.getId());
+
+                emailService.sendTransferSentEmail(
+                                sender.getEmail(), sender.getUsername(),
+                                receiver.getUsername(), request.amount(), transaction.getId());
+                emailService.sendTransferReceivedEmail(
+                                receiver.getEmail(), receiver.getUsername(),
+                                sender.getUsername(), request.amount(), transaction.getId());
+
+                auditService.logTransfer(
+                                sender.getUsername(), sender.getId(),
+                                receiver.getUsername(), receiver.getId(), request.amount());
 
                 return toResponse(transaction);
         }
@@ -156,7 +181,16 @@ public class WalletService {
         }
 
         @Transactional
-        public WithdrawResponse withdraw(String username, WithdrawRequest request) {
+        public WithdrawResponse withdraw(String username, String idempotencyKey, WithdrawRequest request) {
+
+                // 1. Idempotency check
+                String redisKey = IDEMPOTENCY_PREFIX + idempotencyKey;
+                String cachedTransactionId = redisTemplate.opsForValue().get(redisKey);
+                if (cachedTransactionId != null) {
+                        Transaction existing = transactionRepository.findById(UUID.fromString(cachedTransactionId))
+                                        .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR));
+                        return toWithdrawResponse(existing, request);
+                }
 
                 User user = userRepository.findByUsername(username)
                                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
@@ -182,7 +216,7 @@ public class WalletService {
                 walletRepository.save(wallet);
 
                 Transaction transaction = Transaction.builder()
-                                .idempotencyKey(UUID.randomUUID())
+                                .idempotencyKey(UUID.fromString(idempotencyKey))
                                 .sender(user)
                                 .receiver(null)
                                 .amount(request.amount())
@@ -193,14 +227,31 @@ public class WalletService {
                                 .build();
                 transaction = transactionRepository.save(transaction);
 
+                // Store idempotency key in Redis
+                redisTemplate.opsForValue().set(
+                                redisKey,
+                                transaction.getId().toString(),
+                                Duration.ofHours(IDEMPOTENCY_TTL_HOURS));
+
                 log.info("Withdraw completed: user={} | amount={} | fee={} | txnId={}",
                                 username, request.amount(), fee, transaction.getId());
 
+                emailService.sendWithdrawEmail(
+                                user.getEmail(), user.getUsername(),
+                                request.amount(), fee, netAmount, transaction.getId());
+
+                auditService.log(AuditEventType.WITHDRAW, user.getUsername(), user.getId(),
+                                "SUCCESS", request.amount(), null, null);
+
+                return toWithdrawResponse(transaction, request);
+        }
+
+        private WithdrawResponse toWithdrawResponse(Transaction transaction, WithdrawRequest request) {
                 return new WithdrawResponse(
                                 transaction.getId(),
-                                request.amount(),
-                                fee,
-                                netAmount,
+                                transaction.getAmount(),
+                                transaction.getFee(),
+                                transaction.getAmount().subtract(transaction.getFee()),
                                 transaction.getStatus().name(),
                                 request.bankAccountNumber(),
                                 request.bankName(),
