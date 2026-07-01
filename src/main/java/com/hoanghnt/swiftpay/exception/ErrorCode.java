@@ -28,11 +28,18 @@ public enum ErrorCode {
     INSUFFICIENT_BALANCE("WAL_003", "Insufficient balance", HttpStatus.BAD_REQUEST),
     SELF_TRANSFER_NOT_ALLOWED("WAL_004", "Cannot transfer to yourself", HttpStatus.BAD_REQUEST),
     DUPLICATE_TRANSACTION("TXN_001", "Duplicate transaction", HttpStatus.CONFLICT),
-    VNPAY_INVALID_SIGNATURE("VNP_001", "Invalid VNPay signature", HttpStatus.BAD_REQUEST),
-    VNPAY_ORDER_NOT_FOUND("VNP_002", "VNPay order not found", HttpStatus.NOT_FOUND),
-    VNPAY_ALREADY_PROCESSED("VNP_003", "Payment already processed", HttpStatus.CONFLICT),
     WALLET_ALREADY_FROZEN("WAL_005", "Wallet is already frozen", HttpStatus.CONFLICT),
-    WALLET_NOT_FROZEN("WAL_006", "Wallet is not frozen", HttpStatus.CONFLICT);
+    WALLET_NOT_FROZEN("WAL_006", "Wallet is not frozen", HttpStatus.CONFLICT),
+    PAYMENT_NOT_FOUND("PAY_001", "Payment transaction not found", HttpStatus.NOT_FOUND),
+    PAYMENT_ALREADY_PROCESSED("PAY_002", "Payment already processed", HttpStatus.CONFLICT),
+    PAYMENT_EXPIRED("PAY_003", "Payment session expired", HttpStatus.BAD_REQUEST),
+    RATE_LIMIT_EXCEEDED("RATE_001", "Too many requests. Please try again later.", HttpStatus.TOO_MANY_REQUESTS),
+    TRANSFER_AMOUNT_TOO_LOW("WAL_007", "Transfer amount is below minimum allowed", HttpStatus.BAD_REQUEST),
+    TRANSFER_AMOUNT_TOO_HIGH("WAL_008", "Transfer amount exceeds per-transaction limit", HttpStatus.BAD_REQUEST),
+    DAILY_TRANSFER_LIMIT_EXCEEDED("WAL_009", "Daily transfer limit exceeded", HttpStatus.BAD_REQUEST),
+    USER_NOT_FOUND("USR_001", "User not found", HttpStatus.NOT_FOUND),
+    USER_ALREADY_ENABLED("USR_002", "User is already enabled", HttpStatus.CONFLICT),
+    USER_ALREADY_DISABLED("USR_003", "User is already disabled", HttpStatus.CONFLICT);
 
     private final String code;
     private final String defaultMessage;

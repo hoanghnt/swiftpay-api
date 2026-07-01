@@ -36,13 +36,6 @@ server:
   port: ${PORT:8080}
 
 app:
-  vnpay:
-    tmn-code: ${VNPAY_TMN_CODE}
-    hash-secret: ${VNPAY_HASH_SECRET}
-    pay-url: ${VNPAY_PAY_URL}
-    return-url: ${VNPAY_RETURN_URL}
-    ipn-url: ${VNPAY_IPN_URL}
-
   email:
     verification-url: ${APP_VERIFICATION_URL}
     reset-password-url: ${APP_RESET_PASSWORD_URL}

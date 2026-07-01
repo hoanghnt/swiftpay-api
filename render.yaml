@@ -35,14 +35,6 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: VNPAY_TMN_CODE
-        sync: false
-      - key: VNPAY_HASH_SECRET
-        sync: false
-      - key: VNPAY_RETURN_URL
-        sync: false
-      - key: VNPAY_IPN_URL
-        sync: false
       - key: APP_VERIFICATION_URL
         sync: false
       - key: APP_RESET_PASSWORD_URL
