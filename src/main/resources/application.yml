@@ -160,3 +160,6 @@ app:
   email:
     verification-url: ${APP_VERIFICATION_URL:}
     reset-password-url: ${APP_RESET_PASSWORD_URL:}
+
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}

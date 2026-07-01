@@ -71,8 +71,17 @@ public class WalletController {
         return ResponseEntity.ok(BaseResponse.success("Payment URL created", response));
     }
 
+    @Operation(summary = "Get transfer limits",
+               description = "Returns min/max per-transaction transfer amount, daily transfer cap, and today's usage for the authenticated user.")
+    @ApiResponse(responseCode = "200", description = "Limits retrieved successfully")
+    @GetMapping("/limits")
+    public ResponseEntity<BaseResponse<WalletLimitsResponse>> getLimits(Authentication authentication) {
+        WalletLimitsResponse response = walletService.getWalletLimits(authentication.getName());
+        return ResponseEntity.ok(BaseResponse.success(response));
+    }
+
     @Operation(summary = "Withdraw funds (mock)",
-               description = "Deducts the amount from the wallet balance and creates a WITHDRAW transaction. Does not call a real bank API.")
+               description = "Deducts the amount from the wallet balance and creates a WITHDRAW transaction. Does not call a real bank API. Requires a unique X-Idempotency-Key header to prevent duplicate withdrawals.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Withdrawal successful"),
             @ApiResponse(responseCode = "400", description = "Insufficient balance"),
@@ -81,9 +90,10 @@ public class WalletController {
     @PostMapping("/withdraw")
     public ResponseEntity<BaseResponse<WithdrawResponse>> withdraw(
             Authentication authentication,
+            @RequestHeader("X-Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody WithdrawRequest request) {
 
-        WithdrawResponse response = walletService.withdraw(authentication.getName(), request);
+        WithdrawResponse response = walletService.withdraw(authentication.getName(), idempotencyKey, request);
         return ResponseEntity.ok(BaseResponse.success("Withdraw successful", response));
     }
 
