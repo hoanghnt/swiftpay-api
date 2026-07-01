@@ -81,9 +81,24 @@ public class WalletService {
                                         .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR));
                 }
 
+                // 1b. Amount limit checks
+                if (request.amount().compareTo(walletProperties.getMinTransferAmount()) < 0) {
+                        throw new BusinessException(ErrorCode.TRANSFER_AMOUNT_TOO_LOW);
+                }
+                if (request.amount().compareTo(walletProperties.getMaxTransferAmount()) > 0) {
+                        throw new BusinessException(ErrorCode.TRANSFER_AMOUNT_TOO_HIGH);
+                }
+
                 // 2. Load sender
                 User sender = userRepository.findByUsername(senderUsername)
                                 .orElseThrow(() -> new ResourceNotFoundException("User", senderUsername));
+
+                // 2b. Daily transfer limit check
+                String dailyKey = dailyTransferKey(sender.getId());
+                BigDecimal dailyUsed = getDailyTransferUsed(sender.getId());
+                if (dailyUsed.add(request.amount()).compareTo(walletProperties.getMaxDailyTransfer()) > 0) {
+                        throw new BusinessException(ErrorCode.DAILY_TRANSFER_LIMIT_EXCEEDED);
+                }
 
                 // 3. Check self-transfer
                 if (sender.getUsername().equals(request.receiverUsername())) {
@@ -203,7 +218,7 @@ public class WalletService {
                 }
 
                 BigDecimal fee = request.amount()
-                                .multiply(withdrawFeePercent)
+                                .multiply(walletProperties.getWithdrawFeePercent())
                                 .setScale(4, RoundingMode.HALF_UP);
                 BigDecimal netAmount = request.amount().subtract(fee);
 
@@ -256,6 +271,39 @@ public class WalletService {
                                 request.bankAccountNumber(),
                                 request.bankName(),
                                 transaction.getCreatedAt());
+        }
+
+        @Transactional(readOnly = true)
+        public WalletLimitsResponse getWalletLimits(String username) {
+                User user = userRepository.findByUsername(username)
+                                .orElseThrow(() -> new ResourceNotFoundException("User", username));
+
+                BigDecimal dailyUsed = getDailyTransferUsed(user.getId());
+                BigDecimal dailyRemaining = walletProperties.getMaxDailyTransfer().subtract(dailyUsed);
+                if (dailyRemaining.signum() < 0) {
+                        dailyRemaining = BigDecimal.ZERO;
+                }
+
+                return new WalletLimitsResponse(
+                                walletProperties.getMinTransferAmount(),
+                                walletProperties.getMaxTransferAmount(),
+                                walletProperties.getMaxDailyTransfer(),
+                                dailyUsed,
+                                dailyRemaining);
+        }
+
+        private String dailyTransferKey(UUID userId) {
+                return DAILY_TRANSFER_PREFIX + userId + ":" + LocalDate.now(ZoneOffset.UTC);
+        }
+
+        private BigDecimal getDailyTransferUsed(UUID userId) {
+                String value = redisTemplate.opsForValue().get(dailyTransferKey(userId));
+                return value != null ? new BigDecimal(value) : BigDecimal.ZERO;
+        }
+
+        private long secondsUntilMidnightUtc() {
+                LocalDateTime nextMidnight = LocalDate.now(ZoneOffset.UTC).plusDays(1).atStartOfDay();
+                return Duration.between(LocalDateTime.now(ZoneOffset.UTC), nextMidnight).getSeconds();
         }
 
         @Transactional
