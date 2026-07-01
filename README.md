@@ -29,18 +29,26 @@
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
+- [Documentation](#documentation)
 - [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
 - [API Reference](#api-reference)
 - [Project Structure](#project-structure)
 - [Security Design](#security-design)
-- [Roadmap](#roadmap)
 
 ---
 
 ## Overview
 
-SwiftPay is a RESTful backend for a digital wallet platform. Users can register, verify their email, top up via VNPay, transfer funds to other users, withdraw, and view transaction history — all secured by JWT with stateless session management.
+SwiftPay is a RESTful backend for a digital wallet platform. Users can register, verify their email, top up via a mock payment gateway, transfer funds to other users, withdraw, and view transaction history — all secured by JWT with stateless session management.
+
+---
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Phase 1 Monolith docs](docs/phase-1/README.md)
+- [Phase 2 Microservices plan](docs/phase-2/README.md)
 
 ---
 
@@ -58,7 +66,7 @@ SwiftPay is a RESTful backend for a digital wallet platform. Users can register,
 **Wallet**
 - [x] Wallet auto-created on register
 - [x] View balance (`GET /wallet/me`)
-- [x] Top-up via VNPay Sandbox — HMAC-SHA512 signed URL + IPN callback verification
+- [x] Top-up via Mock Payment Gateway — hexagonal `PaymentGatewayPort`/adapter, swappable with a real gateway later
 - [x] Withdraw (mock bank transfer, 1% fee)
 - [x] Freeze / Unfreeze wallet (Admin only)
 
@@ -73,7 +81,7 @@ SwiftPay is a RESTful backend for a digital wallet platform. Users can register,
 - [x] CI/CD via GitHub Actions — build + auto-deploy to Render on merge to `main`
 - [x] Docker multi-stage build (`eclipse-temurin:25`)
 - [x] Flyway database migrations
-- [x] Render PostgreSQL auto-configuration via `DATABASE_URL`
+- [x] Production PostgreSQL auto-configuration via `DATABASE_URL`
 ---
 
 ## Tech Stack
@@ -88,7 +96,7 @@ SwiftPay is a RESTful backend for a digital wallet platform. Users can register,
 | Migration | Flyway | 11.7.x |
 | Cache | Redis (Lettuce) | 7.x |
 | Email | JavaMailSender + Thymeleaf | — |
-| Payment | VNPay Sandbox | — |
+| Payment | Mock Payment Gateway (Ports & Adapters) | — |
 | API Docs | SpringDoc OpenAPI (Swagger) | 2.8.4 |
 | Container | Docker + Docker Compose | — |
 | CI/CD | GitHub Actions | — |
@@ -112,8 +120,8 @@ SwiftPay is a RESTful backend for a digital wallet platform. Users can register,
 └─────────────────────────────────────────────┘
           │               │
           ▼               ▼
-       VNPay           AWS SES
-     (payment)         (email)
+  Mock Payment Gw       AWS SES
+   (PaymentGatewayPort)  (email)
 ```
 
 **Request flow:**
@@ -127,15 +135,16 @@ HTTP Request
   → BaseResponse<T>          (consistent JSON format)
 ```
 
-**VNPay top-up flow:**
+**Mock top-up flow:**
 ```
-POST /wallet/topup → generate HMAC-SHA512 signed URL → return to client
-Client redirects to VNPay sandbox → user pays
-VNPay → POST /payments/vnpay/ipn (server-to-server, no JWT)
-  → verify HMAC signature
+POST /wallet/topup → PaymentGatewayPort.initiate() → mock payment URL returned to client
+Client "redirects" to /mock-payment/pay?txnRef=...
+POST /mock-payment/confirm (no JWT, mirrors a real gateway's server callback)
   → credit wallet balance
   → update transaction status to COMPLETED
 ```
+
+`PaymentGatewayPort` is a Ports & Adapters boundary — swapping in a real gateway (VNPay, MoMo) later only requires a new adapter implementation; `WalletService` and the transfer/withdraw logic never change.
 
 ---
 
@@ -219,12 +228,8 @@ Copy `.env.example` to `.env` and fill in your values.
 | `MAIL_FROM` | Sender email address | Yes |
 | `REDIS_HOST` | Redis host | No (default: localhost) |
 | `REDIS_PORT` | Redis port | No (default: 6379) |
-| `VNPAY_TMN_CODE` | VNPay terminal code | For payment feature |
-| `VNPAY_HASH_SECRET` | VNPay HMAC secret | For payment feature |
-| `VNPAY_RETURN_URL` | VNPay browser return URL | For payment feature |
-| `VNPAY_IPN_URL` | VNPay IPN callback URL | For payment feature |
 
-> On Render, `DATABASE_URL` is automatically parsed into `spring.datasource.*` by `RenderPostgresEnvironmentPostProcessor`.
+> In production, `DATABASE_URL` is automatically parsed into `spring.datasource.*` by `RenderPostgresEnvironmentPostProcessor`.
 
 ---
 
@@ -259,7 +264,7 @@ All responses follow a consistent envelope:
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/wallet/me` | Bearer | View balance and wallet status |
-| `POST` | `/api/wallet/topup` | Bearer | Create VNPay payment URL |
+| `POST` | `/api/wallet/topup` | Bearer | Create mock top-up payment URL |
 | `POST` | `/api/wallet/withdraw` | Bearer | Withdraw funds (mock, 1% fee) |
 | `POST` | `/api/wallet/{userId}/freeze` | Bearer (Admin) | Freeze a wallet |
 | `POST` | `/api/wallet/{userId}/unfreeze` | Bearer (Admin) | Unfreeze a wallet |
@@ -272,12 +277,13 @@ All responses follow a consistent envelope:
 | `GET` | `/api/transactions` | Bearer | List transactions (filter + pagination) |
 | `GET` | `/api/transactions/{id}` | Bearer | Get transaction detail |
 
-### Payments (VNPay callbacks — no JWT)
+### Mock Payment (no JWT)
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/payments/vnpay/ipn` | Public | VNPay IPN server callback |
-| `GET` | `/api/payments/vnpay/return` | Public | VNPay browser return URL |
+| `GET` | `/api/mock-payment/pay` | Public | Mock payment confirmation page |
+| `POST` | `/api/mock-payment/confirm` | Public | Confirm a pending top-up, credits the wallet |
+| `POST` | `/api/mock-payment/cancel` | Public | Cancel a pending top-up |
 
 ### Example Requests
 
@@ -342,7 +348,9 @@ GET /api/transactions?type=TRANSFER&status=COMPLETED&from=2026-01-01T00:00:00&to
 | `WAL_005` | 409 | Wallet is already frozen |
 | `WAL_006` | 409 | Wallet is not frozen |
 | `TXN_001` | 409 | Duplicate transaction |
-| `VNP_001` | 400 | Invalid VNPay signature |
+| `PAY_001` | 404 | Payment transaction not found |
+| `PAY_002` | 409 | Payment already processed |
+| `PAY_003` | 400 | Payment session expired |
 | `SYS_001` | 500 | Internal server error |
 
 ---
@@ -355,13 +363,17 @@ src/main/java/com/hoanghnt/swiftpay/
 │   ├── AuthController.java
 │   ├── WalletController.java
 │   ├── TransactionController.java
-│   └── PaymentController.java
+│   └── MockPaymentController.java
 ├── service/
 │   ├── AuthService.java
 │   ├── WalletService.java
 │   ├── TransactionService.java
-│   ├── VNPayService.java
 │   └── EmailService.java
+├── payment/
+│   ├── PaymentGatewayPort.java
+│   ├── MockPaymentGateway.java
+│   ├── TopupInitResult.java
+│   └── TopupConfirmResult.java
 ├── repository/
 │   ├── UserRepository.java
 │   ├── WalletRepository.java
@@ -400,7 +412,6 @@ src/main/java/com/hoanghnt/swiftpay/
 ├── config/
 │   ├── SecurityConfig.java
 │   ├── OpenApiConfig.java
-│   ├── VNPayConfig.java
 │   ├── JwtProperties.java
 │   ├── JpaAuditingConfig.java
 │   ├── RedisConfig.java
@@ -413,7 +424,8 @@ src/main/java/com/hoanghnt/swiftpay/
 
 src/main/resources/
 ├── db/migration/
-│   └── V1__init_schema.sql
+│   ├── V1__init_schema.sql
+│   └── V2__add_unique_index_transactions_vnp_txn_ref.sql
 ├── templates/
 │   ├── email-verification.html
 │   └── reset-password.html
