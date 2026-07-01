@@ -9,34 +9,39 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hoanghnt.swiftpay.dto.request.TopupRequest;
 import com.hoanghnt.swiftpay.dto.request.WithdrawRequest;
 import com.hoanghnt.swiftpay.dto.response.BaseResponse;
-import com.hoanghnt.swiftpay.dto.response.TopupResponse;
+import com.hoanghnt.swiftpay.dto.response.WalletLimitsResponse;
 import com.hoanghnt.swiftpay.dto.response.WalletResponse;
 import com.hoanghnt.swiftpay.dto.response.WithdrawResponse;
-import com.hoanghnt.swiftpay.service.VNPayService;
+import com.hoanghnt.swiftpay.entity.User;
+import com.hoanghnt.swiftpay.exception.custom.ResourceNotFoundException;
+import com.hoanghnt.swiftpay.payment.PaymentGatewayPort;
+import com.hoanghnt.swiftpay.payment.TopupInitResult;
+import com.hoanghnt.swiftpay.repository.UserRepository;
 import com.hoanghnt.swiftpay.service.WalletService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/wallet")
 @RequiredArgsConstructor
-@Tag(name = "Wallet", description = "View balance, top-up via VNPay, withdraw, freeze/unfreeze (Admin)")
+@Tag(name = "Wallet", description = "View balance, mock top-up, withdraw, freeze/unfreeze (Admin)")
 public class WalletController {
 
     private final WalletService walletService;
-    private final VNPayService vnPayService;
+    private final PaymentGatewayPort paymentGatewayPort;
+    private final UserRepository userRepository;
 
     @Operation(summary = "Get my wallet",
                description = "Returns the current balance and status of the authenticated user's wallet")
@@ -47,25 +52,21 @@ public class WalletController {
         return ResponseEntity.ok(BaseResponse.success(response));
     }
 
-    @Operation(summary = "Create VNPay top-up URL",
-               description = "Generates a VNPay payment URL. Redirect the user to this URL to complete payment. Balance is credited after IPN callback succeeds.")
+    @Operation(summary = "Create mock top-up URL",
+               description = "Generates a mock payment URL. Redirect the user to this URL to complete payment. Balance is credited after the mock payment is confirmed.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Payment URL created"),
             @ApiResponse(responseCode = "404", description = "Wallet not found")
     })
     @PostMapping("/topup")
-    public ResponseEntity<BaseResponse<TopupResponse>> topup(
+    public ResponseEntity<BaseResponse<TopupInitResult>> topup(
             Authentication authentication,
-            @Valid @RequestBody TopupRequest request,
-            HttpServletRequest httpRequest) {
+            @Valid @RequestBody TopupRequest request) {
 
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null) {
-            ipAddress = httpRequest.getRemoteAddr();
-        }
+        User user = userRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("User", authentication.getName()));
 
-        TopupResponse response = vnPayService.createPaymentUrl(
-                authentication.getName(), request, ipAddress);
+        TopupInitResult response = paymentGatewayPort.initiate(user, request.amount());
 
         return ResponseEntity.ok(BaseResponse.success("Payment URL created", response));
     }

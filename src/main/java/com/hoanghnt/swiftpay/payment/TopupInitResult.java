@@ -1,9 +1,9 @@
-package com.hoanghnt.swiftpay.dto.response;
+package com.hoanghnt.swiftpay.payment;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public record TopupResponse(
+public record TopupInitResult(
     UUID transactionId,
     String txnRef,
     String paymentUrl,
