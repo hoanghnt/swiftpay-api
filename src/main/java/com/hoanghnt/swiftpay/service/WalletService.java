@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ import com.hoanghnt.swiftpay.entity.TransactionStatus;
 import com.hoanghnt.swiftpay.entity.TransactionType;
 import com.hoanghnt.swiftpay.entity.User;
 import com.hoanghnt.swiftpay.entity.Wallet;
+import com.hoanghnt.swiftpay.event.TransactionCompletedDomainEvent;
 import com.hoanghnt.swiftpay.exception.ErrorCode;
 import com.hoanghnt.swiftpay.exception.custom.BusinessException;
 import com.hoanghnt.swiftpay.exception.custom.ResourceNotFoundException;
@@ -48,6 +50,7 @@ public class WalletService {
         private final EmailService emailService;
         private final WalletProperties walletProperties;
         private final AuditService auditService;
+        private final ApplicationEventPublisher applicationEventPublisher;
 
         private static final String IDEMPOTENCY_PREFIX = "idempotency:";
         private static final long IDEMPOTENCY_TTL_HOURS = 24;
@@ -168,12 +171,7 @@ public class WalletService {
                 log.info("Transfer completed: {} → {} | amount={} | txnId={}",
                                 senderUsername, request.receiverUsername(), request.amount(), transaction.getId());
 
-                emailService.sendTransferSentEmail(
-                                sender.getEmail(), sender.getUsername(),
-                                receiver.getUsername(), request.amount(), transaction.getId());
-                emailService.sendTransferReceivedEmail(
-                                receiver.getEmail(), receiver.getUsername(),
-                                sender.getUsername(), request.amount(), transaction.getId());
+                applicationEventPublisher.publishEvent(new TransactionCompletedDomainEvent(transaction));
 
                 auditService.logTransfer(
                                 sender.getUsername(), sender.getId(),

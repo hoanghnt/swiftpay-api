@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -51,6 +52,7 @@ class WalletServiceTest {
     @Mock EmailService emailService;
     @Mock AuditService auditService;
     @Mock WalletProperties walletProperties;
+    @Mock ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks WalletService walletService;
 

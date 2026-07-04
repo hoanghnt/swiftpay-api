@@ -92,11 +92,10 @@ public class EmailService {
         }
         try {
             Context context = new Context();
-            context.setVariables(Map.of(
-                    "senderUsername", senderUsername,
-                    "receiverUsername", receiverUsername,
-                    "amount", amount,
-                    "transactionId", transactionId));
+            context.setVariable("senderUsername", senderUsername);
+            context.setVariable("receiverUsername", receiverUsername);
+            context.setVariable("amount", amount);
+            context.setVariable("transactionId", transactionId);
 
             String htmlContent = templateEngine.process("transaction-sent", context);
 
@@ -122,11 +121,10 @@ public class EmailService {
         }
         try {
             Context context = new Context();
-            context.setVariables(Map.of(
-                    "receiverUsername", receiverUsername,
-                    "senderUsername", senderUsername,
-                    "amount", amount,
-                    "transactionId", transactionId));
+            context.setVariable("receiverUsername", receiverUsername);
+            context.setVariable("senderUsername", senderUsername);
+            context.setVariable("amount", amount);
+            context.setVariable("transactionId", transactionId);
 
             String htmlContent = templateEngine.process("transaction-received", context);
 
@@ -172,6 +170,34 @@ public class EmailService {
             log.info("Withdraw email sent to: {}", toEmail);
         } catch (MessagingException e) {
             log.error("Failed to send withdraw email to: {}", toEmail, e);
+        }
+    }
+
+    @Async
+    public void sendTopupSuccessEmail(String toEmail, String username,
+            BigDecimal amount, UUID transactionId) {
+        if (!notificationsEnabled) {
+            return;
+        }
+        try {
+            Context context = new Context();
+            context.setVariable("username", username);
+            context.setVariable("amount", amount);
+            context.setVariable("transactionId", transactionId);
+
+            String htmlContent = templateEngine.process("transaction-topup", context);
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(toEmail);
+            helper.setSubject("SwiftPay: Nạp tiền thành công");
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Topup-success email sent to: {}", toEmail);
+        } catch (MessagingException e) {
+            log.error("Failed to send topup-success email to: {}", toEmail, e);
         }
     }
 }

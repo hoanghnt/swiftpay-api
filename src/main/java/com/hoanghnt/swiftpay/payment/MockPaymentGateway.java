@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import com.hoanghnt.swiftpay.entity.Transaction;
@@ -13,6 +14,7 @@ import com.hoanghnt.swiftpay.entity.TransactionStatus;
 import com.hoanghnt.swiftpay.entity.TransactionType;
 import com.hoanghnt.swiftpay.entity.User;
 import com.hoanghnt.swiftpay.entity.Wallet;
+import com.hoanghnt.swiftpay.event.PaymentSucceededDomainEvent;
 import com.hoanghnt.swiftpay.exception.ErrorCode;
 import com.hoanghnt.swiftpay.exception.custom.BusinessException;
 import com.hoanghnt.swiftpay.repository.TransactionRepository;
@@ -29,6 +31,7 @@ public class MockPaymentGateway implements PaymentGatewayPort {
 
     private final TransactionRepository transactionRepository;
     private final WalletRepository walletRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     @Transactional
@@ -72,6 +75,8 @@ public class MockPaymentGateway implements PaymentGatewayPort {
 
         transaction.setStatus(TransactionStatus.COMPLETED);
         transactionRepository.save(transaction);
+
+        applicationEventPublisher.publishEvent(new PaymentSucceededDomainEvent(transaction));
 
         log.info("Mock payment confirmed txnRef={}, amount={}", txnRef, transaction.getAmount());
         return new TopupConfirmResult(transaction.getId(), txnRef, transaction.getAmount(), "COMPLETED");
