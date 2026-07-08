@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: swiftpay-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: swiftpay-api
+              uri: ${SWIFTPAY_API_URI:http://localhost:8080}
+              predicates:
+                - Path=/api/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

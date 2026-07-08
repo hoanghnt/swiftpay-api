@@ -44,14 +44,6 @@ SwiftPay is a RESTful backend for a digital wallet platform. Users can register,
 
 ---
 
-## Documentation
-
-- [Documentation index](docs/README.md)
-- [Phase 1 Monolith docs](docs/phase-1/README.md)
-- [Phase 2 Microservices plan](docs/phase-2/README.md)
-
----
-
 ## Features
 
 ### Implemented ✅
@@ -206,6 +198,21 @@ export $(grep -v '^#' .env | xargs)
 | Swagger UI | http://localhost:8080/api/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/api/v3/api-docs |
 | Health Check | http://localhost:8080/api/actuator/health |
+
+### 7. (Optional) Run the API Gateway
+
+Phase 2 Milestone 4 adds a standalone Spring Cloud Gateway (`gateway/`) that proxies `/api/**` to
+the monolith above — see [docs/plans/04-api-gateway.md](docs/plans/04-api-gateway.md). It's a
+separate Maven project, not required for the monolith to work on its own:
+
+```bash
+cd gateway
+./mvnw spring-boot:run
+```
+
+Same endpoints as above, just through port `8081` instead of `8080` (e.g.
+http://localhost:8081/api/wallet/me). Override the target with `SWIFTPAY_API_URI` if the monolith
+runs somewhere other than `http://localhost:8080`.
 
 ---
 
