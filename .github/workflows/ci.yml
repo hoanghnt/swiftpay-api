@@ -5,11 +5,50 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build
+    name: Build & Test (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: monolith,            dir: "." }
+          - { name: auth-service,        dir: "auth-service" }
+          - { name: wallet-service,      dir: "wallet-service" }
+          - { name: transaction-service, dir: "transaction-service" }
+          - { name: gateway,             dir: "gateway" }
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: swiftpay-db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: [ "6379:6379" ]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      mongodb:
+        image: mongo:7-jammy
+        ports: [ "27017:27017" ]
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      SPRING_PROFILES_ACTIVE: local
+      JWT_SECRET: ci-only-test-secret-not-a-real-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
 
     steps:
       - name: Checkout code
@@ -24,18 +63,29 @@ jobs:
 
       - name: Make mvnw executable
         run: chmod +x mvnw
+        working-directory: ${{ matrix.dir }}
 
-      - name: Build with Maven (skip tests)
-        run: ./mvnw -B -DskipTests package
+      - name: Build & test
+        run: ./mvnw -B verify
+        working-directory: ${{ matrix.dir }}
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-${{ matrix.name }}
+          path: ${{ matrix.dir }}/target/surefire-reports/
+          if-no-files-found: ignore
 
       - name: Verify Dockerfile builds
-        run: docker build -t swiftpay-api:ci .
+        run: docker build -t swiftpay-${{ matrix.name }}:ci .
+        working-directory: ${{ matrix.dir }}
 
-  deploy:
-    name: Deploy to Render
+  deploy-legacy-monolith:
+    name: Deploy legacy monolith to Render (manual)
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Trigger Render deploy
