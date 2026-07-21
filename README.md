@@ -199,11 +199,33 @@ export $(grep -v '^#' .env | xargs)
 | OpenAPI JSON | http://localhost:8080/api/v3/api-docs |
 | Health Check | http://localhost:8080/api/actuator/health |
 
+### 6b. (Optional) Observability — Zipkin, Prometheus, Grafana (Phase 2, Milestone 7)
+
+`docker compose up -d` already starts **Zipkin** for distributed tracing. Every request carries a
+`traceId`/`spanId` (visible in each service's logs) and one transfer forms a single trace spanning
+transaction-service → wallet-service (HTTP) → Kafka → the monolith consumer.
+
+| Tool | URL | Notes |
+|---|---|---|
+| Zipkin | http://localhost:9411 | Search by service or traceId to see the full cross-service trace |
+| Prometheus | http://localhost:9090 | Scrapes `/actuator/prometheus` of all 5 services (see `monitoring/prometheus.yml`) |
+| Grafana | http://localhost:3001 | Login `admin`/`admin`; Prometheus datasource auto-provisioned |
+
+Prometheus + Grafana are behind a compose profile (kept out of the default `up` to stay lean):
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+Custom business metrics on transaction-service: `swiftpay_transfer_total{result}`,
+`swiftpay_reconciliation_total{outcome}`, gauge `swiftpay_transactions_pending`, plus automatic
+`resilience4j_circuitbreaker_state` / `resilience4j_retry_calls_total` for the money HTTP path.
+
 ### 7. (Optional) Run the API Gateway
 
 Phase 2 Milestone 4 adds a standalone Spring Cloud Gateway (`gateway/`) that proxies `/api/**` to
-the monolith above — see [docs/plans/04-api-gateway.md](docs/plans/04-api-gateway.md). It's a
-separate Maven project, not required for the monolith to work on its own:
+the monolith above. It's a separate Maven project, not required for the monolith to work on its
+own:
 
 ```bash
 cd gateway
@@ -212,7 +234,25 @@ cd gateway
 
 Same endpoints as above, just through port `8081` instead of `8080` (e.g.
 http://localhost:8081/api/wallet/me). Override the target with `SWIFTPAY_API_URI` if the monolith
-runs somewhere other than `http://localhost:8080`.
+runs somewhere other than `http://localhost:8080`, and `SWIFTPAY_AUTH_URI` for the auth service
+below (default `http://localhost:8082`).
+
+### 8. (Optional) Run the Auth Service
+
+Phase 2 Milestone 5 moves `/auth/**` (register, login, refresh, logout, verify email, password
+reset) into a standalone service (`auth-service/`), sharing the same Postgres/Redis/MongoDB as the
+monolith for now. It's not required for the monolith to work on its own — Wallet/Transaction/Admin
+endpoints keep working directly against port `8080` even if this isn't running, except that new
+registrations won't be possible without it:
+
+```bash
+cd auth-service
+./mvnw spring-boot:run
+```
+
+Runs on port `8082` by default (e.g. http://localhost:8082/api/auth/login). When calling through
+the gateway (port `8081`), `/api/auth/**` is routed here automatically; everything else still goes
+to the monolith.
 
 ---
 
