@@ -19,5 +19,7 @@ public record AdminUserDetailResponse(
     UUID walletId,
     BigDecimal balance,
     String currency,
-    boolean walletFrozen
+    boolean walletFrozen,
+    boolean partial,
+    java.util.List<String> unavailableServices
 ) {}

@@ -18,8 +18,7 @@ import com.hoanghnt.swiftpay.audit.AuditEventRepository;
 import com.hoanghnt.swiftpay.dto.response.AuditEventResponse;
 import com.hoanghnt.swiftpay.dto.response.BaseResponse;
 import com.hoanghnt.swiftpay.dto.response.PageResponse;
-import com.hoanghnt.swiftpay.exception.custom.ResourceNotFoundException;
-import com.hoanghnt.swiftpay.repository.UserRepository;
+import com.hoanghnt.swiftpay.security.AuthPrincipal;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,7 +32,6 @@ import lombok.RequiredArgsConstructor;
 public class AuditController {
 
     private final AuditEventRepository auditEventRepository;
-    private final UserRepository userRepository;
 
     @Operation(summary = "Get audit log for a user", description = "Paginated audit log for any user (ADMIN only)")
     @ApiResponse(responseCode = "200", description = "Audit log retrieved")
@@ -57,9 +55,7 @@ public class AuditController {
             Authentication authentication,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        UUID userId = userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User", authentication.getName()))
-                .getId();
+        UUID userId = AuthPrincipal.userId(authentication);
         Pageable pageable = PageRequest.of(page, size, Sort.by("occurredAt").descending());
         Page<AuditEventResponse> result = auditEventRepository
                 .findByActorUserIdOrderByOccurredAtDesc(userId, pageable)

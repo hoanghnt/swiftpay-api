@@ -9,12 +9,6 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
-/**
- * Render Postgres provides {@code DATABASE_URL} as
- * {@code postgresql://user:password@host:port/database}. Spring JDBC expects a {@code jdbc:postgresql}
- * URL; this post-processor runs before context refresh and sets {@code spring.datasource.*} when
- * {@code DATABASE_URL} is present.
- */
 public class RenderPostgresEnvironmentPostProcessor implements EnvironmentPostProcessor {
 
     private static final String DB_URL = "DATABASE_URL";

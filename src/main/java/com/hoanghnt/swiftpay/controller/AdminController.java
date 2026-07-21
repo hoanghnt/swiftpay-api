@@ -27,7 +27,6 @@ import com.hoanghnt.swiftpay.dto.response.TransactionResponse;
 import com.hoanghnt.swiftpay.entity.TransactionStatus;
 import com.hoanghnt.swiftpay.entity.TransactionType;
 import com.hoanghnt.swiftpay.service.AdminService;
-import com.hoanghnt.swiftpay.service.WalletService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -42,7 +41,6 @@ import lombok.RequiredArgsConstructor;
 public class AdminController {
 
     private final AdminService adminService;
-    private final WalletService walletService;
 
     @Operation(summary = "List users", description = "Paginated list of all users, optional search by username/email")
     @ApiResponse(responseCode = "200", description = "Users retrieved")
@@ -51,9 +49,7 @@ public class AdminController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<AdminUserResponse> result = adminService.listUsers(search, pageable);
-        return ResponseEntity.ok(BaseResponse.success(PageResponse.from(result)));
+        return ResponseEntity.ok(BaseResponse.success(adminService.listUsers(search, page, size)));
     }
 
     @Operation(summary = "Get user detail", description = "User detail including wallet info")
@@ -100,7 +96,7 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "Wallet frozen")
     @PostMapping("/wallets/{userId}/freeze")
     public ResponseEntity<BaseResponse<Void>> freezeWallet(@PathVariable UUID userId) {
-        walletService.freezeWallet(userId);
+        adminService.freezeWallet(userId);
         return ResponseEntity.ok(BaseResponse.ok("Wallet frozen successfully"));
     }
 
@@ -108,7 +104,7 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "Wallet unfrozen")
     @PostMapping("/wallets/{userId}/unfreeze")
     public ResponseEntity<BaseResponse<Void>> unfreezeWallet(@PathVariable UUID userId) {
-        walletService.unfreezeWallet(userId);
+        adminService.unfreezeWallet(userId);
         return ResponseEntity.ok(BaseResponse.ok("Wallet unfrozen successfully"));
     }
 
@@ -122,9 +118,8 @@ public class AdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<TransactionResponse> result = adminService.listAllTransactions(type, status, from, to, pageable);
-        return ResponseEntity.ok(BaseResponse.success(PageResponse.from(result)));
+        return ResponseEntity.ok(BaseResponse.success(
+                adminService.listAllTransactions(type, status, from, to, page, size)));
     }
 
     @Operation(summary = "Get any transaction by ID", description = "Not restricted to sender/receiver ownership")
