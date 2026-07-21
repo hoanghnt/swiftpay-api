@@ -1,0 +1,192 @@
+spring:
+  application:
+    name: swiftpay-transaction-service
+
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:swiftpay-db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      pool-name: SwiftPayTxnHikariPool
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        default_schema: public
+
+  flyway:
+    enabled: false
+
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_HOST:localhost}:${MONGO_PORT:27017}/${MONGO_DB:swiftpay_audit}
+
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    template:
+      observation-enabled: true
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    from: ${MAIL_FROM:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        transport:
+          protocol: smtp
+
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    mode: HTML
+    cache: false
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+server:
+  port: ${SERVER_PORT:8084}
+  servlet:
+    context-path: /api
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  health:
+    mail:
+      enabled: false
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:0.1}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+  show-actuator: false
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-},%X{spanId:-}] [%thread] %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.hoanghnt.swiftpay: ${APP_LOG_LEVEL:INFO}
+
+app:
+  startup:
+    fail-fast: ${STARTUP_FAIL_FAST:true}
+
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    window: ${RATE_LIMIT_WINDOW:60s}
+    transfer: ${RATE_LIMIT_TRANSFER:10}
+    topup: ${RATE_LIMIT_TOPUP:5}
+    withdraw: ${RATE_LIMIT_WITHDRAW:5}
+    default-limit: ${RATE_LIMIT_DEFAULT:100}
+
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      algorithm: HS512
+      access-token-expiration: 15m
+      refresh-token-expiration: 7d
+      issuer: swiftpay-api
+
+  wallet-service:
+    base-url: ${SWIFTPAY_WALLET_URI:http://localhost:8083/api}
+    internal-api-key: ${INTERNAL_API_KEY:swiftpay-internal-secret}
+    connect-timeout-ms: ${WALLET_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${WALLET_READ_TIMEOUT_MS:5000}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+  wallet:
+    max-daily-transfer: ${WALLET_MAX_DAILY_TRANSFER:50000000}
+    min-transfer-amount: ${WALLET_MIN_TRANSFER_AMOUNT:1000}
+    max-transfer-amount: ${WALLET_MAX_TRANSFER_AMOUNT:10000000}
+    withdraw-fee-percent: ${WALLET_WITHDRAW_FEE_PERCENT:0.01}
+
+  reconciliation:
+    enabled: ${RECONCILIATION_ENABLED:true}
+    stuck-after-seconds: ${RECONCILIATION_STUCK_AFTER_SECONDS:60}
+    hard-fail-after-seconds: ${RECONCILIATION_HARD_FAIL_AFTER_SECONDS:900}
+    fixed-delay-ms: ${RECONCILIATION_FIXED_DELAY_MS:30000}
+
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      walletService:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+        record-exceptions:
+          - com.hoanghnt.swiftpay.client.WalletUnavailableException
+        ignore-exceptions:
+          - com.hoanghnt.swiftpay.client.WalletBusinessException
+  retry:
+    instances:
+      walletService:
+        max-attempts: 3
+        wait-duration: 200ms
+        retry-exceptions:
+          - com.hoanghnt.swiftpay.client.WalletUnavailableException
+        ignore-exceptions:
+          - com.hoanghnt.swiftpay.client.WalletBusinessException
