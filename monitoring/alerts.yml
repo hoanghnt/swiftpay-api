@@ -1,0 +1,66 @@
+groups:
+  - name: swiftpay-silent-failures
+    rules:
+      - alert: KafkaConsumerLagCao
+        expr: swiftpay_kafka_consumer_lag > 1000
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Consumer group {{ $labels.group }} tồn đọng {{ $value }} message"
+          description: >-
+            Lag giữ trên 1000 suốt 3 phút. Consumer đang tiêu thụ chậm hơn tốc độ sinh event, hoặc đã
+            chết hẳn. Sự cố E2 (2026-07-20) chính là dạng này: lag 31.787 mà mọi healthcheck vẫn xanh.
+            Kiểm tra: docker logs <service>, và kafka-consumer-groups --describe.
+
+      - alert: KafkaConsumerLagTangKhongDung
+        expr: swiftpay_kafka_consumer_lag > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumer group {{ $labels.group }} tồn đọng kéo dài ({{ $value }})"
+          description: >-
+            Lag nhỏ nhưng không tụt suốt 15 phút — consumer không theo kịp một cách bền vững. Đây là
+            giai đoạn SỚM của sự cố E2, bắt ở đây thì rẻ hơn nhiều.
+
+      - alert: DLTCoMessage
+        expr: swiftpay_kafka_dlt_messages > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Topic {{ $labels.topic }} đang giữ {{ $value }} message chết"
+          description: >-
+            Đã có event bị xử lý thất bại tới mức bị đẩy vào DLT. Luôn luôn cần người xem — nội dung
+            và nguyên nhân — rồi replay. Ngưỡng là 0 vì DLT khác 0 KHÔNG BAO GIỜ là trạng thái bình thường.
+
+      - alert: OutboxKet
+        expr: swiftpay_outbox_oldest_age_seconds > 300
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }}: event outbox cũ nhất đã {{ $value }}s chưa được phát"
+          description: >-
+            Publisher chết hoặc không nối được Kafka. Tiền vẫn ghi đúng vào DB nên API hoàn toàn bình
+            thường — không có triệu chứng nào khác ngoài metric này.
+
+      - alert: CircuitBreakerMo
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} đang OPEN"
+          description: >-
+            Service phía sau đang hỏng và đã bị ngắt để fail nhanh. Trang admin sẽ trả dữ liệu một phần.
+
+      - alert: ServiceKhongScrapeDuoc
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Không scrape được {{ $labels.job }} ({{ $labels.instance }})"
+          description: Service chết, treo, hoặc actuator không phản hồi.

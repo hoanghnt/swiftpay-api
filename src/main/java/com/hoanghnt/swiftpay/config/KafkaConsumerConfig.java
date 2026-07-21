@@ -26,6 +26,10 @@ public class KafkaConsumerConfig {
     private String groupId;
 
     private Map<String, Object> baseConsumerProps() {
+        return baseConsumerProps(groupId);
+    }
+
+    private Map<String, Object> baseConsumerProps(String groupId) {
         return Map.of(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
                 ConsumerConfig.GROUP_ID_CONFIG, groupId,
@@ -48,10 +52,13 @@ public class KafkaConsumerConfig {
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, TransactionCompletedEvent>
             transactionCompletedKafkaListenerContainerFactory(
-                    ConsumerFactory<String, TransactionCompletedEvent> transactionCompletedConsumerFactory) {
+                    ConsumerFactory<String, TransactionCompletedEvent> transactionCompletedConsumerFactory,
+                    org.springframework.kafka.listener.DefaultErrorHandler kafkaErrorHandler) {
         ConcurrentKafkaListenerContainerFactory<String, TransactionCompletedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(transactionCompletedConsumerFactory);
+        factory.getContainerProperties().setObservationEnabled(true);
+        factory.setCommonErrorHandler(kafkaErrorHandler);
         return factory;
     }
 
@@ -69,10 +76,14 @@ public class KafkaConsumerConfig {
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, PaymentSucceededEvent>
             paymentSucceededKafkaListenerContainerFactory(
-                    ConsumerFactory<String, PaymentSucceededEvent> paymentSucceededConsumerFactory) {
+                    ConsumerFactory<String, PaymentSucceededEvent> paymentSucceededConsumerFactory,
+                    org.springframework.kafka.listener.DefaultErrorHandler kafkaErrorHandler) {
         ConcurrentKafkaListenerContainerFactory<String, PaymentSucceededEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(paymentSucceededConsumerFactory);
+        factory.getContainerProperties().setObservationEnabled(true);
+        factory.setCommonErrorHandler(kafkaErrorHandler);
         return factory;
     }
+
 }

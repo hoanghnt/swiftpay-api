@@ -23,4 +23,28 @@ public class KafkaTopicConfig {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    public NewTopic usersTopic() {
+        return TopicBuilder.name("swiftpay.users")
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic transactionsDltTopic() {
+        return TopicBuilder.name("swiftpay.transactions.DLT")
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic paymentsDltTopic() {
+        return TopicBuilder.name("swiftpay.payments.DLT")
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
 }
