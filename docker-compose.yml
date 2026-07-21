@@ -1,6 +1,5 @@
 services:
 
-  # ==================== PostgreSQL ====================
   postgres:
     image: postgres:16-alpine
     container_name: swiftpay-db
@@ -9,23 +8,23 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ==================== MongoDB (Audit Log) ====================
   mongodb:
     image: mongo:7-jammy
     container_name: swiftpay-audit
     environment:
       MONGO_INITDB_DATABASE: swiftpay_audit
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -34,12 +33,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # ==================== Redis ====================
   redis:
     image: redis:7-alpine
     container_name: swiftpay-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -49,7 +47,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ==================== Kafka ====================
   kafka:
     image: apache/kafka:4.3.0
     container_name: kafka
@@ -87,10 +84,221 @@ services:
       kafka:
         condition: service_healthy
 
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9411/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: swiftpay-prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: swiftpay-grafana
+    profiles: ["monitoring"]
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: swiftpay-auth-service
+    env_file: .env
+    environment:
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=256m"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8082
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: auth_db
+      APP_LOG_LEVEL: DEBUG
+      TRACING_SAMPLE_RATE: "1.0"
+      REDIS_HOST: redis
+      MONGO_HOST: mongodb
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "127.0.0.1:8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/api/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongodb: { condition: service_healthy }
+
+  wallet-service:
+    build:
+      context: ./wallet-service
+      dockerfile: Dockerfile
+    container_name: swiftpay-wallet-service
+    env_file: .env
+    environment:
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=256m"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8083
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: wallet_db
+      APP_LOG_LEVEL: DEBUG
+      TRACING_SAMPLE_RATE: "1.0"
+      REDIS_HOST: redis
+      MONGO_HOST: mongodb
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "127.0.0.1:8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/api/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  transaction-service:
+    build:
+      context: ./transaction-service
+      dockerfile: Dockerfile
+    container_name: swiftpay-transaction-service
+    env_file: .env
+    environment:
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=256m"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8084
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: txn_db
+      APP_LOG_LEVEL: DEBUG
+      TRACING_SAMPLE_RATE: "1.0"
+      REDIS_HOST: redis
+      MONGO_HOST: mongodb
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      SWIFTPAY_WALLET_URI: http://wallet-service:8083/api
+    ports:
+      - "127.0.0.1:8084:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/api/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongodb: { condition: service_healthy }
+      wallet-service: { condition: service_healthy }
+
+  swiftpay-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: swiftpay-api
+    env_file: .env
+    environment:
+      JAVA_OPTS: "-Xms128m -Xmx448m -XX:MaxMetaspaceSize=256m"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8080
+      NOTIFICATIONS_ENABLED: "false"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: swiftpay-db
+      TRACING_SAMPLE_RATE: "1.0"
+      REDIS_HOST: redis
+      MONGO_HOST: mongodb
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      SWIFTPAY_AUTH_URI: http://auth-service:8082/api
+      SWIFTPAY_WALLET_URI: http://wallet-service:8083/api
+      SWIFTPAY_TXN_URI: http://transaction-service:8084/api
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongodb: { condition: service_healthy }
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: swiftpay-gateway
+    environment:
+      JAVA_OPTS: "-Xms96m -Xmx256m -XX:MaxMetaspaceSize=192m -Dsun.net.inetaddr.ttl=5 -Dsun.net.inetaddr.negative.ttl=0"
+      SERVER_PORT: 8081
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      SWIFTPAY_AUTH_URI: http://auth-service:8082
+      SWIFTPAY_WALLET_URI: http://wallet-service:8083
+      SWIFTPAY_TXN_URI: http://transaction-service:8084
+      SWIFTPAY_API_URI: http://swiftpay-api:8080
+      GATEWAY_LOG_LEVEL: DEBUG
+      TRACING_SAMPLE_RATE: "1.0"
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    depends_on:
+      auth-service: { condition: service_healthy }
+      wallet-service: { condition: service_healthy }
+      transaction-service: { condition: service_healthy }
+      swiftpay-api: { condition: service_healthy }
+
 volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   default:

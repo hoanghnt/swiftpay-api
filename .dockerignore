@@ -1,4 +1,7 @@
+# Monolith build context (context = repo root). Keep it small + exclude secrets and sibling service modules
+# (the monolith Dockerfile only COPYs root pom.xml/src/mvnw/.mvn).
 target/
+**/target/
 .git
 .gitignore
 .cursor*
@@ -10,3 +13,10 @@ target/
 README.md
 render.yaml
 **/*.log
+# Phase B/containerization: sibling service modules build with their own context/Dockerfile.
+auth-service/
+wallet-service/
+transaction-service/
+gateway/
+docs/
+monitoring/

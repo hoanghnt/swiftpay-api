@@ -9,6 +9,18 @@ spring:
       server:
         webflux:
           routes:
+            - id: swiftpay-auth
+              uri: ${SWIFTPAY_AUTH_URI:http://localhost:8082}
+              predicates:
+                - Path=/api/auth/**
+            - id: swiftpay-wallet
+              uri: ${SWIFTPAY_WALLET_URI:http://localhost:8083}
+              predicates:
+                - Path=/api/wallets/**
+            - id: swiftpay-transaction
+              uri: ${SWIFTPAY_TXN_URI:http://localhost:8084}
+              predicates:
+                - Path=/api/transactions/**,/api/wallet/**,/api/mock-payment/**
             - id: swiftpay-api
               uri: ${SWIFTPAY_API_URI:http://localhost:8080}
               predicates:
@@ -18,8 +30,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:0.1}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
 
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:INFO}

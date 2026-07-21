@@ -45,6 +45,21 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- ==================== TRACING (Micrometer + Zipkin) — Milestone 7a ==================== -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.zipkin.reporter2</groupId>
+            <artifactId>zipkin-reporter-brave</artifactId>
+        </dependency>
+        <!-- Prometheus metrics — Milestone 7c -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- ==================== SECURITY & JWT ==================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -111,6 +126,20 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- ==================== RESILIENCE4J ====================
+             Bảo vệ 3 admin client gọi auth/wallet/transaction-service. Fan-out song song (P7) khuếch
+             đại rủi ro: getSummary chờ CẢ 3 service, chỉ 1 service treo là treo cả trang admin. -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+            <version>2.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-micrometer</artifactId>
+            <version>2.3.0</version>
         </dependency>
 
         <!-- ==================== EMAIL ==================== -->
