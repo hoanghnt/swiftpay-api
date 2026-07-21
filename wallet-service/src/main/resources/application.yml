@@ -1,0 +1,112 @@
+spring:
+  application:
+    name: swiftpay-wallet-service
+
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:swiftpay-db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      pool-name: SwiftPayWalletHikariPool
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        default_schema: public
+
+  flyway:
+    enabled: false
+
+  data:
+    mongodb:
+      uri: mongodb://${MONGO_HOST:localhost}:${MONGO_PORT:27017}/${MONGO_DB:swiftpay_audit}
+
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: wallet-provisioning
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+server:
+  port: ${SERVER_PORT:8083}
+  servlet:
+    context-path: /api
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:0.1}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+  show-actuator: false
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-},%X{spanId:-}] [%thread] %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.hoanghnt.swiftpay: ${APP_LOG_LEVEL:INFO}
+
+app:
+  startup:
+    fail-fast: ${STARTUP_FAIL_FAST:true}
+
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      algorithm: HS512
+      access-token-expiration: 15m
+      refresh-token-expiration: 7d
+      issuer: swiftpay-api
+
+  internal:
+    api-key: ${INTERNAL_API_KEY:swiftpay-internal-secret}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+  wallet:
+    max-daily-transfer: ${WALLET_MAX_DAILY_TRANSFER:100000000}
+    min-transfer-amount: ${WALLET_MIN_TRANSFER_AMOUNT:1000}
+    max-transfer-amount: ${WALLET_MAX_TRANSFER_AMOUNT:50000000}
+    withdraw-fee-percent: ${WALLET_WITHDRAW_FEE_PERCENT:0.005}
